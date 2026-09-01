@@ -1,0 +1,6 @@
+.buildozer/
+bin/
+*.pyc
+__pycache__/
+.venv/
+*.db
