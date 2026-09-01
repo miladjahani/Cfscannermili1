@@ -6,7 +6,8 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-runs-on: ubuntu-22.04
+    runs-on: runs-on: ubuntu-22.04
+
 
 
     steps:
