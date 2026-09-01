@@ -20,6 +20,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
+          cache-dependency-path: "${{ github.workspace }}/**/requirements.txt"
 
       - name: Install system dependencies
         run: |
@@ -76,9 +77,14 @@ jobs:
             ccache-${{ runner.os }}-
 
       - name: Install Buildozer and Cython
+        working-directory: ${{ steps.locate_project.outputs.spec_dir }}
         run: |
           python3 -m pip install --upgrade pip
-          pip install --upgrade buildozer==1.5.0 cython==0.29.36 virtualenv
+          if [ -f requirements.txt ]; then
+            pip install --upgrade -r requirements.txt
+          else
+            pip install --upgrade buildozer==1.5.0 cython==0.29.36 virtualenv
+          fi
 
       - name: Build APK with Buildozer
         working-directory: ${{ steps.locate_project.outputs.spec_dir }}
