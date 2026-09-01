@@ -1,0 +1,76 @@
+name: Build Android APK (اسکنر کلودفلر)
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libtool libtool-bin automake autoconf zip unzip \
+            openjdk-17-jdk python3-pip cmake libffi-dev libssl-dev \
+            build-essential git ccache libltdl-dev \
+            libssl-dev zlib1g-dev libncurses5-dev libncursesw5-dev
+
+      - name: Set JAVA_HOME
+        run: echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> "$GITHUB_ENV"
+
+      - name: Cache Buildozer global directory
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-global-
+
+      - name: Cache application build directory
+        uses: actions/cache@v4
+        with:
+          path: .buildozer
+          key: buildozer-app-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
+          restore-keys: |
+            buildozer-app-${{ runner.os }}-
+
+      - name: Install Buildozer and Cython
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install --upgrade buildozer==1.5.0 cython==0.29.36 virtualenv
+
+      - name: Build APK with Buildozer
+        run: |
+          yes | buildozer android debug
+        env:
+          # Non-interactive Android SDK license acceptance.
+          BUILDOZER_ACCEPT_LICENSES: "1"
+
+      - name: Locate built APK
+        id: locate_apk
+        run: |
+          APK_PATH=$(find ./bin -name "*.apk" | head -n 1)
+          echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
+          echo "Found APK at: $APK_PATH"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cfpersianscan-debug-apk
+          path: ${{ steps.locate_apk.outputs.apk_path }}
+          if-no-files-found: error
+          retention-days: 14
