@@ -53,7 +53,20 @@ jobs:
           python3 -m pip install --upgrade pip
           pip install --upgrade buildozer==1.5.0 cython==0.29.36 virtualenv
 
+      - name: Locate buildozer.spec
+        id: locate_project
+        run: |
+          SPEC_PATH=$(find . -maxdepth 4 -iname "buildozer.spec" | head -n 1)
+          if [ -z "$SPEC_PATH" ]; then
+            echo "::error::buildozer.spec not found anywhere in the repository."
+            exit 1
+          fi
+          SPEC_DIR=$(dirname "$SPEC_PATH")
+          echo "spec_dir=$SPEC_DIR" >> "$GITHUB_OUTPUT"
+          echo "Found buildozer.spec in: $SPEC_DIR"
+
       - name: Build APK with Buildozer
+        working-directory: ${{ steps.locate_project.outputs.spec_dir }}
         run: |
           yes | buildozer android debug
         env:
@@ -63,7 +76,11 @@ jobs:
       - name: Locate built APK
         id: locate_apk
         run: |
-          APK_PATH=$(find ./bin -name "*.apk" | head -n 1)
+          APK_PATH=$(find "${{ steps.locate_project.outputs.spec_dir }}/bin" -name "*.apk" | head -n 1)
+          if [ -z "$APK_PATH" ]; then
+            echo "::error::No APK found after build."
+            exit 1
+          fi
           echo "apk_path=$APK_PATH" >> "$GITHUB_OUTPUT"
           echo "Found APK at: $APK_PATH"
 
