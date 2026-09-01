@@ -19,6 +19,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+          cache: "pip"
 
       - name: Install system dependencies
         run: |
@@ -32,27 +33,6 @@ jobs:
       - name: Set JAVA_HOME
         run: echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> "$GITHUB_ENV"
 
-      - name: Cache Buildozer global directory
-        uses: actions/cache@v4
-        with:
-          path: ~/.buildozer
-          key: buildozer-global-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            buildozer-global-
-
-      - name: Cache application build directory
-        uses: actions/cache@v4
-        with:
-          path: .buildozer
-          key: buildozer-app-${{ runner.os }}-${{ hashFiles('buildozer.spec') }}
-          restore-keys: |
-            buildozer-app-${{ runner.os }}-
-
-      - name: Install Buildozer and Cython
-        run: |
-          python3 -m pip install --upgrade pip
-          pip install --upgrade buildozer==1.5.0 cython==0.29.36 virtualenv
-
       - name: Locate buildozer.spec
         id: locate_project
         run: |
@@ -63,7 +43,42 @@ jobs:
           fi
           SPEC_DIR=$(dirname "$SPEC_PATH")
           echo "spec_dir=$SPEC_DIR" >> "$GITHUB_OUTPUT"
+          echo "spec_path=$SPEC_PATH" >> "$GITHUB_OUTPUT"
           echo "Found buildozer.spec in: $SPEC_DIR"
+
+      # This is the big one: caches the downloaded Android SDK/NDK plus the
+      # already-compiled Kivy/KivyMD recipes (python-for-android "dists").
+      # A cache HIT turns a 30-60 min build into ~5-10 min. It only pays off
+      # from the 2nd run onward, and only if buildozer.spec's content (and
+      # thus the hash key) doesn't change between runs.
+      - name: Cache Buildozer global directory (SDK/NDK/compiled recipes)
+        uses: actions/cache@v4
+        with:
+          path: ~/.buildozer
+          key: buildozer-global-${{ runner.os }}-${{ hashFiles(steps.locate_project.outputs.spec_path) }}
+          restore-keys: |
+            buildozer-global-${{ runner.os }}-
+
+      - name: Cache application build directory
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.locate_project.outputs.spec_dir }}/.buildozer
+          key: buildozer-app-${{ runner.os }}-${{ hashFiles(steps.locate_project.outputs.spec_path) }}
+          restore-keys: |
+            buildozer-app-${{ runner.os }}-
+
+      - name: Cache ccache compiler cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-${{ runner.os }}-${{ hashFiles(steps.locate_project.outputs.spec_path) }}
+          restore-keys: |
+            ccache-${{ runner.os }}-
+
+      - name: Install Buildozer and Cython
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install --upgrade buildozer==1.5.0 cython==0.29.36 virtualenv
 
       - name: Build APK with Buildozer
         working-directory: ${{ steps.locate_project.outputs.spec_dir }}
@@ -72,6 +87,10 @@ jobs:
         env:
           # Non-interactive Android SDK license acceptance.
           BUILDOZER_ACCEPT_LICENSES: "1"
+          # Speeds up recompiles of C/C++ recipe sources across runs.
+          USE_CCACHE: "1"
+          CCACHE_DIR: /home/runner/.ccache
+          NDK_CCACHE: ccache
 
       - name: Locate built APK
         id: locate_apk
