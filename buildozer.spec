@@ -68,7 +68,7 @@ android.allow_backup = True
 android.accept_sdk_license = True
 
 # (str) python-for-android branch to use, defaults to master
-p4a.branch = master
+p4a.branch = develop
 
 # (bool) Skip byte compile for .py files (speeds up build/debug cycles)
 android.no-byte-compile-python = False
